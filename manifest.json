@@ -1,0 +1,14 @@
+{
+  "name": "ブランド物販 管理ダッシュボード",
+  "short_name": "ブランド物販",
+  "description": "ブランド物販の売上・利益・在庫管理ダッシュボード",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f5f5f5",
+  "theme_color": "#2563eb",
+  "orientation": "any",
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png"}
+  ]
+}
