@@ -306,7 +306,16 @@ function readSheet(ss, name, isSold) {
 }`}
 
 // ===== 未販売 =====
-function estProfit(it){if(!it.listPrice)return null;return it.listPrice-(it.cost||0)-(it.estCommission||0)-(it.estShipping||0)}
+function autoCommission(it){
+  if(!it.listPrice)return 0;
+  if(it.estCommission)return it.estCommission;
+  const m=it.marketplace||'';
+  if(m==='PayPay')return Math.round(it.listPrice*0.05);
+  if(m==='エコリング')return 0;
+  if(m==='メルカリ'||m==='ラクマ'||m==='ヤフオク')return Math.round(it.listPrice*0.1);
+  return Math.round(it.listPrice*0.1);
+}
+function estProfit(it){if(!it.listPrice)return null;return it.listPrice-(it.cost||0)-autoCommission(it)-(it.estShipping||0)}
 
 function renderStock(){
   const overdue=stock.filter(it=>daysSinceListed(it)>=90);
@@ -339,10 +348,10 @@ function renderStock(){
   }
 
   html+=`<div class="card" style="padding:0;overflow:hidden"><div style="overflow-x:auto">
-    <table><thead><tr><th>番号</th><th>カテゴリ</th><th>商品名</th><th>仕入先</th><th class="r">仕入金額</th><th>販売先</th><th class="r">販売予定価格</th><th class="r">想定利益</th><th class="c">経過日数</th><th>状態</th></tr></thead>
-    <tbody>${stock.length===0?'<tr><td colspan="10" style="padding:24px;text-align:center;color:var(--text3)">在庫データなし</td></tr>':
-    stock.sort((a,b)=>daysSinceListed(b)-daysSinceListed(a)).map(it=>{const d=daysSinceListed(it);const ov=d>=90;const p=estProfit(it);const pw=p!==null&&p<=5000;
-      return`<tr class="${pw?'overdue':ov?'overdue':''}"><td style="font-weight:500">${it.id}</td><td>${it.category||''}</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${it.name||''}</td><td>${it.supplier||''}</td><td class="r tabular">${fmt(it.cost||0)}</td><td>${it.marketplace||''}</td><td class="r tabular">${it.listPrice?fmt(it.listPrice):'—'}</td><td class="r tabular" style="font-weight:700;${p!==null?(p<=5000?'color:var(--red)':p<=10000?'color:var(--amber)':'color:var(--green)'):'color:var(--text3)'}">${p!==null?fmt(p):'—'}</td><td class="c tabular">${d}日</td><td>${pw?'<span class="badge badge-danger">値下げストップ</span>':ov?'<span class="badge badge-danger">3ヶ月超</span>':d>=60?'<span class="badge badge-warn">2ヶ月超</span>':'<span class="badge badge-ok">掲載中</span>'}</td></tr>`;
+    <table><thead><tr><th>番号</th><th>カテゴリ</th><th>商品名</th><th>仕入先</th><th class="r">仕入金額</th><th>販売先</th><th class="r">販売予定価格</th><th class="r">手数料</th><th class="r">送料</th><th class="r">想定利益</th><th class="c">経過日数</th><th>状態</th></tr></thead>
+    <tbody>${stock.length===0?'<tr><td colspan="12" style="padding:24px;text-align:center;color:var(--text3)">在庫データなし</td></tr>':
+    stock.sort((a,b)=>daysSinceListed(b)-daysSinceListed(a)).map(it=>{const d=daysSinceListed(it);const ov=d>=90;const p=estProfit(it);const pw=p!==null&&p<=5000;const com=autoCommission(it);
+      return`<tr class="${pw?'overdue':ov?'overdue':''}"><td style="font-weight:500">${it.id}</td><td>${it.category||''}</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${it.name||''}</td><td>${it.supplier||''}</td><td class="r tabular">${fmt(it.cost||0)}</td><td>${it.marketplace||''}</td><td class="r tabular">${it.listPrice?fmt(it.listPrice):'—'}</td><td class="r tabular">${it.listPrice?fmt(com):'—'}</td><td class="r tabular">${it.estShipping?fmt(it.estShipping):'—'}</td><td class="r tabular" style="font-weight:700;${p!==null?(p<=5000?'color:var(--red)':p<=10000?'color:var(--amber)':'color:var(--green)'):'color:var(--text3)'}">${p!==null?fmt(p):'—'}</td><td class="c tabular">${d}日</td><td>${pw?'<span class="badge badge-danger">値下げストップ</span>':ov?'<span class="badge badge-danger">3ヶ月超</span>':d>=60?'<span class="badge badge-warn">2ヶ月超</span>':'<span class="badge badge-ok">掲載中</span>'}</td></tr>`;
     }).join('')}</tbody></table></div></div>`;
   document.getElementById('mainContent').innerHTML=html;
 }
