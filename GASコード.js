@@ -1,8 +1,10 @@
 // =============================================
 // Google Apps Script - ブランド物販ダッシュボードAPI
 //
-// 「未販売」「販売済」2つのシートから読み取り、
-// ダッシュボードにJSON形式で返します。
+// 機能:
+// 1. ダッシュボードAPI（未販売・販売済のデータ送信）
+// 2. 「ブランド物販」メニュー → 「販売済に移動」
+//    未販売シートで行を選択 → メニュークリックで販売済シートに移動
 //
 // 使い方:
 // 1. ブランド物販管理スプレッドシートを開く
@@ -13,6 +15,82 @@
 //    - アクセス: 全員
 // 5. URLをダッシュボードのAPI設定に貼り付け
 // =============================================
+
+// スプレッドシートを開いた時にメニューを追加
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('ブランド物販')
+    .addItem('📦→💰 販売済に移動', 'moveToSold')
+    .addToUi();
+}
+
+// 未販売シートで選択した行を販売済シートに移動
+function moveToSold() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var stockSheet = ss.getSheetByName('未販売');
+  var soldSheet = ss.getSheetByName('販売済');
+
+  if (!stockSheet || !soldSheet) {
+    SpreadsheetApp.getUi().alert('「未販売」と「販売済」シートが必要です');
+    return;
+  }
+
+  // 現在のシートが未販売か確認
+  var activeSheet = ss.getActiveSheet();
+  if (activeSheet.getName() !== '未販売') {
+    SpreadsheetApp.getUi().alert('「未販売」シートで行を選択してから実行してください');
+    return;
+  }
+
+  var selection = activeSheet.getActiveRange();
+  var startRow = selection.getRow();
+  var numRows = selection.getNumRows();
+
+  // ヘッダー行は除外
+  if (startRow <= 1) {
+    SpreadsheetApp.getUi().alert('ヘッダー行は移動できません。データ行を選択してください');
+    return;
+  }
+
+  // 未販売の列数
+  var stockCols = stockSheet.getLastColumn();
+
+  // 販売済の最終行を取得
+  var soldLastRow = soldSheet.getLastRow();
+
+  // 販売済のヘッダーから列マッピングを作成
+  var soldHeaders = soldSheet.getRange(1, 1, 1, soldSheet.getLastColumn()).getValues()[0];
+  var stockHeaders = stockSheet.getRange(1, 1, 1, stockCols).getValues()[0];
+
+  var moved = 0;
+
+  // 下の行から処理（削除時にずれないように）
+  for (var i = numRows - 1; i >= 0; i--) {
+    var row = startRow + i;
+    var rowData = stockSheet.getRange(row, 1, 1, stockCols).getValues()[0];
+
+    // 番号が空なら飛ばす
+    if (!rowData[0]) continue;
+
+    // 販売済シートに行を追加
+    var newRow = soldLastRow + moved + 1;
+
+    // 共通列をマッピング（番号、個数、カテゴリ、商品名、仕入れ先、仕入日、仕入金額、掲載日）
+    for (var j = 0; j < Math.min(8, stockCols); j++) {
+      soldSheet.getRange(newRow, j + 1).setValue(rowData[j]);
+    }
+
+    // 未販売シートから行を削除
+    stockSheet.deleteRow(row);
+    moved++;
+  }
+
+  if (moved > 0) {
+    SpreadsheetApp.getUi().alert(moved + '件を販売済シートに移動しました。\n販売先・販売金額・購入された日などを入力してください。');
+  } else {
+    SpreadsheetApp.getUi().alert('移動するデータがありませんでした');
+  }
+}
 
 function doGet(e) {
   var callback = e.parameter.callback;
