@@ -55,12 +55,15 @@ function moveToSold() {
   // 未販売の列数
   var stockCols = stockSheet.getLastColumn();
 
-  // 販売済の最終行を取得
-  var soldLastRow = soldSheet.getLastRow();
-
-  // 販売済のヘッダーから列マッピングを作成
-  var soldHeaders = soldSheet.getRange(1, 1, 1, soldSheet.getLastColumn()).getValues()[0];
-  var stockHeaders = stockSheet.getRange(1, 1, 1, stockCols).getValues()[0];
+  // 販売済シートのA列で実データがある最終行を探す
+  var soldColA = soldSheet.getRange('A:A').getValues();
+  var soldLastRow = 1;
+  for (var k = soldColA.length - 1; k >= 1; k--) {
+    if (soldColA[k][0] !== '' && soldColA[k][0] !== null) {
+      soldLastRow = k + 1;
+      break;
+    }
+  }
 
   var moved = 0;
 
