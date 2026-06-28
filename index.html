@@ -270,9 +270,9 @@ function readSheet(ss, name, isSold) {
     if (/仕入金額|仕入れ額/.test(h)) ci.cost=j;
     if (/掲載日/.test(h)) ci.ld=j;
     if (/販売先/.test(h)) ci.mkt=j;
-    if (/販売金額|販売価格/.test(h)) ci.sp=j;
+    if (/販売金額|販売価格|販売予定価格/.test(h)) ci.sp=j;
     if (/購入された日/.test(h)) ci.sd=j;
-    if (/販売手数料/.test(h)) ci.com=j;
+    if (/販売手数料|想定手数料/.test(h)) ci.com=j;
     if (/送料/.test(h)) ci.ship=j;
     if (/メルカリ/.test(h)&amp;&amp;/手数料/.test(h)) ci.comM=j;
     if ((/ペイペイ/.test(h)||/PayPay/i.test(h))&amp;&amp;/手数料/.test(h)) ci.comP=j;
@@ -293,6 +293,12 @@ function readSheet(ss, name, isSold) {
       var mkt=String(r[ci.mkt]||'').trim();if(mkt==='エコオク')mkt='エコリング';if(mkt==='ペイペイ')mkt='PayPay';
       var com=ci.com!==undefined?py(r[ci.com]):py(r[ci.comM])+py(r[ci.comP])+py(r[ci.comR])+py(r[ci.comY])+py(r[ci.comE]);
       it.marketplace=mkt;it.salePrice=py(r[ci.sp]);it.saleDate=fd(r[ci.sd]);it.commission=com;it.shipping=py(r[ci.ship]);
+    }else{
+      if(ci.mkt!==undefined){var mk2=String(r[ci.mkt]||'').trim();if(mk2==='ペイペイ')mk2='PayPay';it.marketplace=mk2;}
+      if(ci.sp!==undefined)it.listPrice=py(r[ci.sp]);
+      if(ci.com!==undefined)it.estCommission=py(r[ci.com]);
+      else if(ci.comM!==undefined)it.estCommission=py(r[ci.comM])+py(r[ci.comP])+py(r[ci.comR])+py(r[ci.comY])+py(r[ci.comE]);
+      if(ci.ship!==undefined)it.estShipping=py(r[ci.ship]);
     }
     items.push(it);
   }
@@ -300,17 +306,30 @@ function readSheet(ss, name, isSold) {
 }`}
 
 // ===== 未販売 =====
+function estProfit(it){if(!it.listPrice)return null;return it.listPrice-(it.cost||0)-(it.estCommission||0)-(it.estShipping||0)}
+
 function renderStock(){
   const overdue=stock.filter(it=>daysSinceListed(it)>=90);
+  const profitWarn=stock.filter(it=>{const p=estProfit(it);return p!==null&&p<=5000});
   const totalCost=stock.reduce((s,it)=>s+(it.cost||0),0);
 
   document.getElementById('kpiCards').innerHTML=
     kpi('在庫数',stock.length+'件','')+
     kpi('在庫金額（仕入）',fmt(totalCost),'')+
     kpi('3ヶ月超',overdue.length+'件','',overdue.length?'text-red':'')+
+    kpi('利益¥5,000以下',profitWarn.length+'件','',profitWarn.length?'text-red':'')+
     kpi('平均経過日数',stock.length?Math.round(stock.reduce((s,it)=>s+daysSinceListed(it),0)/stock.length)+'日':'—','');
 
   let html='';
+
+  if(profitWarn.length){
+    html+=`<div class="alert" style="background:#fef2f2;border-color:rgba(220,38,38,0.3)"><div class="alert-title">🛑 値下げストップ！利益¥5,000以下（${profitWarn.length}件）</div>
+    <table style="width:100%;margin-top:8px"><thead><tr><th style="color:var(--red)">管理番号</th><th style="color:var(--red)">商品名</th><th style="color:var(--red)">販売先</th><th style="color:var(--red)" class="r">販売予定価格</th><th style="color:var(--red)" class="r">仕入金額</th><th style="color:var(--red)" class="r">想定利益</th></tr></thead>
+    <tbody>${profitWarn.sort((a,b)=>(estProfit(a)||0)-(estProfit(b)||0)).map(it=>{const p=estProfit(it);
+      return`<tr><td style="font-weight:700">${it.id}</td><td>${it.name||''}</td><td>${it.marketplace||''}</td><td class="r tabular">${fmt(it.listPrice||0)}</td><td class="r tabular">${fmt(it.cost||0)}</td><td class="r tabular text-red" style="font-weight:700">${fmt(p)}</td></tr>`}).join('')}
+    </tbody></table></div>`;
+  }
+
   if(overdue.length){
     html+=`<div class="alert"><div class="alert-title">⚠ 掲載日から3ヶ月以上未販売（${overdue.length}件）</div>
     <table style="width:100%;margin-top:8px"><thead><tr><th style="color:var(--red)">管理番号</th><th style="color:var(--red)">商品名</th><th style="color:var(--red)" class="c">掲載日</th><th style="color:var(--red)" class="r">仕入金額</th><th style="color:var(--red)" class="r">経過日数</th></tr></thead>
@@ -318,11 +337,12 @@ function renderStock(){
     <tr style="border-top:2px solid rgba(220,38,38,0.3);font-weight:700"><td colspan="3">合計</td><td class="r tabular">${fmt(overdue.reduce((s,it)=>s+(it.cost||0),0))}</td><td></td></tr>
     </tbody></table></div>`;
   }
+
   html+=`<div class="card" style="padding:0;overflow:hidden"><div style="overflow-x:auto">
-    <table><thead><tr><th>番号</th><th>カテゴリ</th><th>商品名</th><th>仕入先</th><th class="c">仕入日</th><th class="r">仕入金額</th><th class="c">掲載日</th><th class="c">経過日数</th><th>状態</th></tr></thead>
-    <tbody>${stock.length===0?'<tr><td colspan="9" style="padding:24px;text-align:center;color:var(--text3)">在庫データなし</td></tr>':
-    stock.sort((a,b)=>daysSinceListed(b)-daysSinceListed(a)).map(it=>{const d=daysSinceListed(it);const ov=d>=90;
-      return`<tr class="${ov?'overdue':''}"><td style="font-weight:500">${it.id}</td><td>${it.category||''}</td><td style="max-width:250px;overflow:hidden;text-overflow:ellipsis">${it.name||''}</td><td>${it.supplier||''}</td><td class="c tabular">${it.purchaseDate||''}</td><td class="r tabular">${fmt(it.cost||0)}</td><td class="c tabular">${it.listDate||''}</td><td class="c tabular">${d}日</td><td>${ov?'<span class="badge badge-danger">3ヶ月超</span>':d>=60?'<span class="badge badge-warn">2ヶ月超</span>':'<span class="badge badge-ok">掲載中</span>'}</td></tr>`;
+    <table><thead><tr><th>番号</th><th>カテゴリ</th><th>商品名</th><th>仕入先</th><th class="r">仕入金額</th><th>販売先</th><th class="r">販売予定価格</th><th class="r">想定利益</th><th class="c">経過日数</th><th>状態</th></tr></thead>
+    <tbody>${stock.length===0?'<tr><td colspan="10" style="padding:24px;text-align:center;color:var(--text3)">在庫データなし</td></tr>':
+    stock.sort((a,b)=>daysSinceListed(b)-daysSinceListed(a)).map(it=>{const d=daysSinceListed(it);const ov=d>=90;const p=estProfit(it);const pw=p!==null&&p<=5000;
+      return`<tr class="${pw?'overdue':ov?'overdue':''}"><td style="font-weight:500">${it.id}</td><td>${it.category||''}</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${it.name||''}</td><td>${it.supplier||''}</td><td class="r tabular">${fmt(it.cost||0)}</td><td>${it.marketplace||''}</td><td class="r tabular">${it.listPrice?fmt(it.listPrice):'—'}</td><td class="r tabular" style="font-weight:700;${p!==null?(p<=5000?'color:var(--red)':p<=10000?'color:var(--amber)':'color:var(--green)'):'color:var(--text3)'}">${p!==null?fmt(p):'—'}</td><td class="c tabular">${d}日</td><td>${pw?'<span class="badge badge-danger">値下げストップ</span>':ov?'<span class="badge badge-danger">3ヶ月超</span>':d>=60?'<span class="badge badge-warn">2ヶ月超</span>':'<span class="badge badge-ok">掲載中</span>'}</td></tr>`;
     }).join('')}</tbody></table></div></div>`;
   document.getElementById('mainContent').innerHTML=html;
 }
@@ -438,8 +458,8 @@ function importOneCSV(text,filename){
     if(/^番号$/.test(t))ci.num=idx;if(/個数|仕入個数/.test(t))ci.qty=idx;if(/仕入れ日/.test(t))ci.pd=idx;
     if(/掲載日/.test(t))ci.ld=idx;if(/購入された日/.test(t))ci.sd=idx;if(/カテゴリ/.test(t))ci.cat=idx;
     if(/仕入れ先/.test(t))ci.sup=idx;if(/販売先/.test(t))ci.mkt=idx;if(/^商品/.test(t))ci.name=idx;
-    if(/仕入れ額|仕入金額/.test(t))ci.cost=idx;if(/販売価格|販売金額/.test(t))ci.sp=idx;if(/送料/.test(t))ci.ship=idx;
-    if(/販売手数料/.test(t))ci.com=idx;
+    if(/仕入れ額|仕入金額/.test(t))ci.cost=idx;if(/販売価格|販売金額|販売予定価格/.test(t))ci.sp=idx;if(/送料/.test(t))ci.ship=idx;
+    if(/販売手数料|想定手数料/.test(t))ci.com=idx;
     if(/メルカリ/.test(t)&&/手数料/.test(t))ci.comM=idx;if(/(ペイペイ|PayPay)/i.test(t)&&/手数料/.test(t))ci.comP=idx;
     if(/ラクマ/.test(t)&&/手数料/.test(t))ci.comR=idx;if(/(ヤフオク|Yahoo)/i.test(t)&&/手数料/.test(t))ci.comY=idx;
     if(/エコオク/.test(t)&&!/仕入/.test(t))ci.comE=idx;
@@ -461,7 +481,10 @@ function importOneCSV(text,filename){
       const ex=sold.findIndex(x=>x.id===id);if(ex>=0)sold[ex]=it;else sold.push(it);
       const si=stock.findIndex(x=>x.id===id);if(si>=0)stock.splice(si,1);
     }else{
-      const it={id,category:cat||'財布',name:(r[ci.name]||'').replace(/[\n\r]+/g,' ').trim(),supplier:sup,purchaseDate:parseDateJP(r[ci.pd]),cost:parseYen(r[ci.cost]),listDate:parseDateJP(r[ci.ld]),quantity:Number(r[ci.qty])||1};
+      const it={id,category:cat||'財布',name:(r[ci.name]||'').replace(/[\n\r]+/g,' ').trim(),supplier:sup,purchaseDate:parseDateJP(r[ci.pd]),cost:parseYen(r[ci.cost]),listDate:parseDateJP(r[ci.ld]),quantity:Number(r[ci.qty])||1,marketplace:mkt};
+      if(ci.sp!==undefined&&parseYen(r[ci.sp]))it.listPrice=parseYen(r[ci.sp]);
+      if(ci.com!==undefined&&com)it.estCommission=com;
+      if(ci.ship!==undefined&&parseYen(r[ci.ship]))it.estShipping=parseYen(r[ci.ship]);
       if(!sold.some(x=>x.id===id)){const ex=stock.findIndex(x=>x.id===id);if(ex>=0)stock[ex]=it;else stock.push(it)}
     }
   }

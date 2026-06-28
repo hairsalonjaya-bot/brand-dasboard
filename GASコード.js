@@ -63,9 +63,9 @@ function readSheet(ss, sheetName, isSold) {
     if (/仕入金額|仕入れ額/.test(h)) ci.cost = j;
     if (/掲載日/.test(h)) ci.listDate = j;
     if (/販売先/.test(h)) ci.marketplace = j;
-    if (/販売金額|販売価格/.test(h)) ci.salePrice = j;
+    if (/販売金額|販売価格|販売予定価格/.test(h)) ci.salePrice = j;
     if (/購入された日/.test(h)) ci.saleDate = j;
-    if (/販売手数料/.test(h)) ci.commission = j;
+    if (/販売手数料|想定手数料/.test(h)) ci.commission = j;
     if (/送料/.test(h)) ci.shipping = j;
     // 旧形式互換
     if (/メルカリ/.test(h) && /手数料/.test(h)) ci.comM = j;
@@ -125,6 +125,15 @@ function readSheet(ss, sheetName, isSold) {
       item.saleDate = fmtDate(r[ci.saleDate]);
       item.commission = com;
       item.shipping = parseYen(r[ci.shipping]);
+    } else {
+      if (ci.marketplace !== undefined) {
+        var mk2 = String(r[ci.marketplace] || '').trim();
+        if (mk2 === 'ペイペイ') mk2 = 'PayPay';
+        item.marketplace = mk2;
+      }
+      if (ci.salePrice !== undefined && parseYen(r[ci.salePrice])) item.listPrice = parseYen(r[ci.salePrice]);
+      if (ci.commission !== undefined && parseYen(r[ci.commission])) item.estCommission = parseYen(r[ci.commission]);
+      if (ci.shipping !== undefined && parseYen(r[ci.shipping])) item.estShipping = parseYen(r[ci.shipping]);
     }
 
     items.push(item);
